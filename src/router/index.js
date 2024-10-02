@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import cookies from 'vue-cookies'
 import store from '../store'
+import axios from 'axios'
 
 const routes = [
   {
@@ -9,10 +10,22 @@ const routes = [
     name: 'home',
     component: () => import('../views/UploadHome.vue'),
     beforeEnter: (to, from, next) => {
-      const authCode = cookies.get('authCode')
+      let authCode = cookies.get('authCode');
       if (authCode === null && to.name !== 'login') {
-        ElMessage.error('请先认证！')
-        next({ name: 'login' })
+        // 尝试未设置密码的情况
+        axios.post('/login', {
+            authCode: 'unset'
+        }).then(res => {
+            if (res.status !== 200) {
+                throw new Error('认证失败！')
+            }
+            cookies.set('authCode', 'unset', '14d')
+            authCode = 'unset'
+            next()
+        }).catch(err => {
+            ElMessage.error('请先认证！')
+            next({ name: 'login' })
+        })
       } else {
         next()
       }
@@ -31,8 +44,55 @@ const routes = [
       // 从store中获取凭据
       const credentials = store.getters.credentials
       if (credentials === null && to.name !== 'adminLogin') {
-        ElMessage.error('请先登录！')
-        next({ name: 'adminLogin' })
+        // 尝试未设置密码的情况
+        const credentials = btoa('unset:unset')
+        fetch ('/api/manage/check', { 
+                method: 'GET',
+                headers: {
+                  'Authorization': 'Basic ' + credentials
+                },
+                credentials: 'include'
+        }).then(res => {
+            if (res.status !== 200) {
+                throw new Error('认证失败！')
+            }
+            store.commit('setCredentials', credentials)
+            next()
+        }).catch(err => {
+            ElMessage.error('请先认证！')
+            next({ name: 'adminLogin' })
+        })
+      } else {
+        next()
+      }
+    }
+  },
+  {
+    path: '/customerConfig',
+    name: 'customerConfig',
+    component: () => import('../views/CustomerConfig.vue'),
+    beforeEnter: (to, from, next) => {
+      // 从store中获取凭据
+      const credentials = store.getters.credentials
+      if (credentials === null && to.name !== 'adminLogin') {
+        // 尝试未设置密码的情况
+        const credentials = btoa('unset:unset')
+        fetch ('/api/manage/check', { 
+                method: 'GET',
+                headers: {
+                  'Authorization': 'Basic ' + credentials
+                },
+                credentials: 'include'
+        }).then(res => {
+            if (res.status !== 200) {
+                throw new Error('认证失败！')
+            }
+            store.commit('setCredentials', credentials)
+            next()
+        }).catch(err => {
+            ElMessage.error('请先认证！')
+            next({ name: 'adminLogin' })
+        })
       } else {
         next()
       }
